@@ -1,0 +1,112 @@
+:root {
+  --green1: #60693D;
+  --dark-brown: #69584C;
+  --tan: #C7B39A;
+  --off-white: #ECEBE8;
+  --beige: #D2C9BF;
+}
+
+.varela-round-regular {
+  font-family: "Varela Round", sans-serif;
+  font-weight: 400;
+  font-style: normal;
+}
+
+.inclusive-sans {
+  font-family: "Inclusive Sans", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: normal;
+}
+
+.jua-regular {
+  font-family: "Jua", sans-serif;
+  font-weight: 400;
+  font-style: normal;
+}
+
+html, body {
+  background-color: var(--off-white);
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  width: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.title {
+  font-family: "Jua", sans-serif;
+  color: var(--green1);
+  margin: 0;
+  margin-top: 2rem;
+  font-size: 2rem;
+
+}
+
+.planter-info {
+  display: flex;
+  margin-top: 30px;
+  text-align: left;
+  justify-content: space-between;
+}
+
+.planter-title {
+  font-family: "Jua", sans-serif;
+  color: var(--dark-brown);
+  font-size: 1.7rem;
+  margin: 0;
+}
+
+p {
+  font-family: "Inclusive Sans", sans-serif;
+  margin: 0;
+  padding: 2px;
+}
+
+.garden-preview {
+  background-color: var(--tan);
+  height: 15rem;
+  width: 15rem;
+  margin: 2rem;
+  columns: 2;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 20px;
+  place-self: center;
+
+}
+
+.garden-info {
+  margin-inline: 20px;
+}
+
+.planter-box {
+  background-color: var(--beige);
+  height: inherit;
+  border-radius: 10px;
+}
+
+.water-button {
+  border-radius: calc(infinity * 1px);
+  width: 70px;
+  height: 70px;
+  border-style: none;
+  background: var(--beige);
+}
+
+.water-button:active {
+  border-radius: calc(infinity * 1px);
+  width: 70px;
+  height: 70px;
+  border-style: none;
+  background: var(--tan);
+}
