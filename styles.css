@@ -56,7 +56,7 @@ html, body {
   display: flex;
   margin-top: 30px;
   text-align: left;
-  justify-content: space-between;
+  gap: 70px;
 }
 
 .planter-title {
@@ -86,7 +86,7 @@ p {
 }
 
 .garden-info {
-  margin-inline: 20px;
+  place-self: center;
 }
 
 .planter-box {
@@ -109,4 +109,12 @@ p {
   height: 70px;
   border-style: none;
   background: var(--tan);
+}
+
+.water-button-disabled {
+  border-radius: calc(infinity * 1px);
+  width: 70px;
+  height: 70px;
+  border-style: none;
+  background: #b8b8b8;
 }
