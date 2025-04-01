@@ -1,6 +1,6 @@
 /* ======================================== 
 #### NOTES:
-- make sure laptop is connected to hot spot before running!
+- make sure laptop is connected to ubcvisitor before running!
 
 #### TROUBLESHOOTING: 
 - if upload error 2, make sure upload speed = 112500
@@ -33,9 +33,10 @@ String soilState = "wet"; // "wet": moisture levels over threshold
 const int pumpOutput = 25;
 const int sensorInput = 32;
 
-int moistureReading = 0;
-float moisturePercent = 0;
-int threshold = 429;
+float moistureReading = 0.00;
+float moisturePercent = 0.00;
+int threshold = 2755; // og value was 2457, 2755 was the moisture reading on dry soil
+                      // wet soil goes down to ~1300
 
 // Current time
 unsigned long currentTime = millis();
@@ -47,6 +48,9 @@ const long timeoutTime = 2000;
 void setup() {
   Serial.begin(115200);
   delay(200);
+  pinMode(pumpOutput, OUTPUT);
+  pinMode(sensorInput, INPUT);
+  pinMode(2, OUTPUT);
 
   WiFi.mode(WIFI_STA);
   Serial.println("MAC address: ");
@@ -78,11 +82,14 @@ void loop(){
   Serial.println(moistureReading);
   if (moistureReading > threshold) { // higher reading = drier soil
     soilState = "dry";
+    waterPlant();
   } else {
     soilState = "wet";
   }
   // moisture percent:
-  moisturePercent = 100 * (1 - (moistureReading - 30) / (800 - 30));
+  moisturePercent = 100 * float((1 - float((moistureReading - 0) / (4095 - 0))));
+  Serial.print("Moisture percent: ");
+  Serial.println(moisturePercent);
 
   if (client) {                             // If a new client connects,
     currentTime = millis();
@@ -110,12 +117,13 @@ void loop(){
             if (header.indexOf("GET /25/on") >= 0) {
               Serial.println("pump on");
               pumpState = "on";
-              digitalWrite(pumpOutput, HIGH);
-            } else if (header.indexOf("GET /25/off") >= 0) {
-              Serial.println("pump off");
-              pumpState = "off";
-              digitalWrite(pumpOutput, LOW);
-            }
+              waterPlant();
+            } // else if (header.indexOf("GET /25/off") >= 0) {
+            //   Serial.println("pump off");
+            //   pumpState = "off";
+            //   digitalWrite(2, LOW); // blue LED thats on the ESP32 board
+            //   analogWrite(pumpOutput, 0);
+            // }
             
             // Display the HTML web page
             client.println("<!DOCTYPE html>");
@@ -243,38 +251,37 @@ void loop(){
             client.println("  </section>");
             client.println("  <section class=\"main\">");
             client.println("    <div class=\"garden-preview\">");
-            client.println("      <div id=\"planter-box-1\" class=\"planter-box\"></div>");
-            client.println("      <div id=\"planter-box-2\" class=\"planter-box\"></div>");
+            client.println("      <div id=\"planter-box-1\" class=\"planter-box\"><p>Sage</p></div>");
+            client.println("      <div id=\"planter-box-2\" class=\"planter-box\"><p>Basil</p></div>");
             client.println("    </div>");
             client.println("    <div class=\"garden-info\">");
             client.println("      <div id=\"planter-info-1\" class=\"planter-info\">");
             client.println("        <div>");
-            client.println("          <h3 class=\"planter-title\">Sage Planter</h3>");
+            client.println("          <h3 class=\"planter-title\">Plant Status</h3>");
             client.println("          <p>last watered: 26/03/2025</p>");
             client.println("          <p>saturation: " + String(moisturePercent) + "%</p>");
             client.println("        </div>");
             if (pumpState == "off") { // if pump is inactive
+              client.println("        <a href=\"/25/on\">");
               client.println("        <button class=\"water-button\">");
               client.println("          <p>water!</p>");
-              client.println("        </button>");
-            } else {                  // if pump is active
+              client.println("        </button></a>");
+            } else {                  // if pump is active (button is NOT linked)
               client.println("        <button class=\"water-button-disabled\">");
               client.println("          <p>watering</p>");
-              client.println("        </button>");
+              client.println("        </button><");
             }
-            client.println("          <p>water!</p>");
-            client.println("        </button>");
             client.println("      </div>");
-            client.println("      <div id=\"planter-info-2\" class=\"planter-info\">");
-            client.println("        <div>");
-            client.println("          <h3 class=\"planter-title\">Planter 2</h3>");
-            client.println("          <p>last watered: 26/03/2025</p>");
-            client.println("          <p>saturation: " + String(moisturePercent) + "%</p>");
-            client.println("        </div>");
-            client.println("        <button class=\"water-button\">");
-            client.println("          <p>water!</p>");
-            client.println("        </button>");
-            client.println("      </div>");
+            // client.println("      <div id=\"planter-info-2\" class=\"planter-info\">");
+            // client.println("        <div>");
+            // client.println("          <h3 class=\"planter-title\">Basil Planter</h3>");
+            // client.println("          <p>last watered: 26/03/2025</p>");
+            // client.println("          <p>saturation: " + String(moisturePercent) + "%</p>");
+            // client.println("        </div>");
+            // // client.println("        <button class=\"water-button\">");
+            // // client.println("          <p>water!</p>");
+            // // client.println("        </button>");
+            // client.println("      </div>");
             client.println("    </div>");
             client.println("  </section>");
             client.println("  <section class=\"footer\">");
@@ -300,9 +307,18 @@ void loop(){
     client.stop();
     Serial.println("Client disconnected.");
     Serial.println("");
-    delay(500);
   } else {
-    Serial.println("Waiting for connection...");
-    delay(500);
+    // Serial.println("Waiting for connection...");
   }
+  delay(500);
+}
+
+void waterPlant() {
+  digitalWrite(2, HIGH); // blue LED thats on the ESP32 board
+  // turn on pump for 5s, then turn it off
+  analogWrite(pumpOutput, 200);
+  delay(5000);
+  analogWrite(pumpOutput, 0);
+  pumpState = "off";
+  digitalWrite(2, LOW); // blue LED thats on the ESP32 board
 }
