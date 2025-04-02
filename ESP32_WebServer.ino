@@ -21,16 +21,16 @@ if itme: find a way to convert ms to date/time
 #include <WiFi.h>
 
 // ### Isabella's hotspot:
-// const char* ssid = "##########"; // network name
-// const char* password = "##########"; // network password 
+const char* ssid = "isabellas phone"; // network name
+const char* password = "hohoheeha"; // network password 
 
 // ### Nina's apartment:
-const char* ssid = "##########"; // network name
-const char* password = "##########"; // network password 
+// const char* ssid = "TELUS5499"; // network name
+// const char* password = "346g5j593k"; // network password 
 
 // ### Isabella's house: 
-// const char* ssid = "##########"; // network name
-// const char* password = ##########"; // network password 
+// const char* ssid = "SHAW-7C2E"; // network name
+// const char* password = "collar8216camel"; // network password 
 
 
 // Set web server port number to 80
@@ -55,13 +55,14 @@ int threshold = 2755; // og value was 2457, 2755 was the moisture reading on dry
                       // wet soil goes down to ~1300
 
 // Timing variables for WIFI
-unsigned long currentTime = millis();
+unsigned long currentTimeoutTime = millis();
 unsigned long previousTime = 0; 
 const long timeoutTime = 2000; // Define WIFI timeout time in milliseconds (example: 2000ms = 2s)
 
 // Timing variables for RECORDING 
+unsigned long currentReadingTime = millis();
 unsigned long lastReadingTime = 0;
-const unsigned long readingInterval = 900000; // 15 minutes in milliseconds 
+const unsigned long readingInterval = 60000; // 15 minutes in milliseconds 
 
 // exporting data setup
 
@@ -106,15 +107,19 @@ void setup() {
 void loop(){
   WiFiClient client = server.available();   // Listen for incoming clients
 
+  currentReadingTime = millis();
   readMoistureSensors(); 
+  Serial.print("isExporting: ");
+  Serial.println(isExporting);
+
 
   if (client) {                             // If a new client connects,
-    currentTime = millis();
-    previousTime = currentTime;
+    currentTimeoutTime = millis();
+    previousTime = currentTimeoutTime;
     Serial.println("New Client.");          // print a message out in the serial port
     String currentLine = "";                // make a String to hold incoming data from the client
-    while (client.connected() && currentTime - previousTime <= timeoutTime) {  // loop while the client's connected
-      currentTime = millis();
+    while (client.connected() && currentTimeoutTime - previousTime <= timeoutTime) {  // loop while the client's connected
+      currentTimeoutTime = millis();
       if (client.available()) {   
         char c = client.read();             // read a byte, then
         Serial.write(c);                    // print it out the serial monitor
@@ -138,13 +143,17 @@ void loop(){
             } else if (header.indexOf("GET /export") >= 0) {
               Serial.println("exporting data...");
               isExporting = "true";
-            }
-            // else if (header.indexOf("GET /25/off") >= 0) {
-            //   Serial.println("pump off");
-            //   pumpState = "off";
-            //   digitalWrite(2, LOW); // blue LED thats on the ESP32 board
-            //   analogWrite(pumpOutput, 0);
-            // }
+
+              Serial.print("isExporting: ");
+              Serial.println(isExporting);  
+
+            } else if (header.indexOf("GET /") >= 0) {
+              Serial.println("displaying home page...");
+              isExporting = "false";
+
+              Serial.print("isExporting: ");
+              Serial.println(isExporting);
+            };
 
             // Display the HTML web page
             client.println("<!DOCTYPE html>");
@@ -300,18 +309,23 @@ void loop(){
               client.println("        </button>");
               client.println("      </a>");
               client.println("    </div>");
+              for (int i = 0; i < readingIndex; i++) {
+                client.println("<p>" + String(readings[i].timestamp) + "   |   " + String(readings[i].moistureReading) + "</p>");
+                client.println("<p> </p>");
+              };
               client.println("  </section>");
               client.println("  <section class=\"footer\">");
               client.println("  </section>");
               client.println("</body>");
             } else { // if isExporting = "true":
               client.println("<body>");
+              client.println("<p>Your data:</p>");
               
               // for loop to print data
               for (int i = 0; i < readingIndex; i++) {
                 client.println("<p>" + String(readings[i].timestamp) + "   |   " + String(readings[i].moistureReading) + "</p>");
                 client.println("<p> </p>");
-              }
+              };
               client.println("</body>");
             }
               client.println("</html>");
@@ -368,18 +382,17 @@ void readMoistureSensors() {
   Serial.println(moisturePercent);
   
   // Save a new reading every minute
-  if (currentTime - lastReadingTime >= readingInterval) {
-    lastReadingTime = currentTime;
+  if (currentReadingTime - lastReadingTime >= readingInterval) {
+    lastReadingTime = currentReadingTime;
     
     if (readingIndex < MAX_READINGS) {
-      readings[readingIndex].timestamp = currentTime;
+      readings[readingIndex].timestamp = currentReadingTime;
       readings[readingIndex].moistureReading = moistureReading;
 
       Serial.print("============ Reading added: ");
       Serial.print(readings[readingIndex].timestamp);
       Serial.print("  |  ");
       Serial.println(readings[readingIndex].moistureReading);
-      
       readingIndex++;
     } else {
       readingIndex = 0; // if MAX_READING is reached, go back to 0
