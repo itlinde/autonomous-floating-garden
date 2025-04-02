@@ -21,16 +21,16 @@ if itme: find a way to convert ms to date/time
 #include <WiFi.h>
 
 // ### Isabella's hotspot:
-// const char* ssid = "isabellas phone"; // network name
-// const char* password = "hohoheeha"; // network password 
+// const char* ssid = "##########"; // network name
+// const char* password = "##########"; // network password 
 
 // ### Nina's apartment:
-const char* ssid = "TELUS5499"; // network name
-const char* password = "346g5j593k"; // network password 
+const char* ssid = "##########"; // network name
+const char* password = "##########"; // network password 
 
 // ### Isabella's house: 
-// const char* ssid = "SHAW-7C2E"; // network name
-// const char* password = "collar8216camel"; // network password 
+// const char* ssid = "##########"; // network name
+// const char* password = ##########"; // network password 
 
 
 // Set web server port number to 80
