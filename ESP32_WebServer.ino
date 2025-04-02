@@ -5,15 +5,30 @@
 #### TROUBLESHOOTING: 
 - if upload error 2, make sure upload speed = 112500
 
+### PLAN: 
+
+- create struct with time & moisture reading
+- create array of structs 
+- make button that takes u to another page thats just the moisture data
+- display the array data on the other page 
+  - make test array
+
+if itme: find a way to convert ms to date/time
+
 ======================================== */
 
 // Load Wi-Fi library
 #include <WiFi.h>
 
-// Replace with your network credentials
-const char* ssid = "isabellas phone"; // network name
-const char* password = "hohoheeha"; // network password 
+// ### Isabella's hotspot:
+// const char* ssid = "isabellas phone"; // network name
+// const char* password = "hohoheeha"; // network password 
 
+// ### Nina's apartment:
+const char* ssid = "TELUS5499"; // network name
+const char* password = "346g5j593k"; // network password 
+
+// ### Isabella's house: 
 // const char* ssid = "SHAW-7C2E"; // network name
 // const char* password = "collar8216camel"; // network password 
 
@@ -28,6 +43,7 @@ String header;
 String pumpState = "off";
 String soilState = "wet"; // "wet": moisture levels over threshold
                           // "dry": moisture levels under threshold
+String isExporting = "false"; // "true" sends user to export page
 
 // output variables for GPIO pins
 const int pumpOutput = 25;
@@ -38,12 +54,26 @@ float moisturePercent = 0.00;
 int threshold = 2755; // og value was 2457, 2755 was the moisture reading on dry soil
                       // wet soil goes down to ~1300
 
-// Current time
+// Timing variables for WIFI
 unsigned long currentTime = millis();
-// Previous time
 unsigned long previousTime = 0; 
-// Define timeout time in milliseconds (example: 2000ms = 2s)
-const long timeoutTime = 2000;
+const long timeoutTime = 2000; // Define WIFI timeout time in milliseconds (example: 2000ms = 2s)
+
+// Timing variables for RECORDING 
+unsigned long lastReadingTime = 0;
+const unsigned long readingInterval = 900000; // 15 minutes in milliseconds 
+
+// exporting data setup
+
+#define MAX_READINGS 1440
+
+struct Reading {
+  unsigned long timestamp;
+  float moistureReading;
+};
+
+Reading readings[MAX_READINGS]; // creates an array "readings" of type Reading
+int readingIndex = 0; // start index for adding readings 
 
 void setup() {
   Serial.begin(115200);
@@ -76,20 +106,7 @@ void setup() {
 void loop(){
   WiFiClient client = server.available();   // Listen for incoming clients
 
-  // saturation level calcs
-  moistureReading = analogRead(sensorInput);
-  Serial.print("Moisture sensor reading: ");
-  Serial.println(moistureReading);
-  if (moistureReading > threshold) { // higher reading = drier soil
-    soilState = "dry";
-    waterPlant();
-  } else {
-    soilState = "wet";
-  }
-  // moisture percent:
-  moisturePercent = 100 * float((1 - float((moistureReading - 0) / (4095 - 0))));
-  Serial.print("Moisture percent: ");
-  Serial.println(moisturePercent);
+  readMoistureSensors(); 
 
   if (client) {                             // If a new client connects,
     currentTime = millis();
@@ -118,13 +135,17 @@ void loop(){
               Serial.println("pump on");
               pumpState = "on";
               waterPlant();
-            } // else if (header.indexOf("GET /25/off") >= 0) {
+            } else if (header.indexOf("GET /export") >= 0) {
+              Serial.println("exporting data...");
+              isExporting = "true";
+            }
+            // else if (header.indexOf("GET /25/off") >= 0) {
             //   Serial.println("pump off");
             //   pumpState = "off";
             //   digitalWrite(2, LOW); // blue LED thats on the ESP32 board
             //   analogWrite(pumpOutput, 0);
             // }
-            
+
             // Display the HTML web page
             client.println("<!DOCTYPE html>");
             client.println("<html lang=\"en\">");
@@ -241,53 +262,60 @@ void loop(){
             client.println("    }");
             client.println("  </style>");
             client.println("</head>");
-            client.println("<body>");
-            client.println("  <section class=\"header\">");
-            client.println("    <h1 class=\"title\">My Floating Garden</h1>");
-            client.println("    <div>");
-            client.println("      <!-- Weather Icon goes here -->");
-            client.println("      <p>Vancouver, BC</p>");
-            client.println("    </div>");
-            client.println("  </section>");
-            client.println("  <section class=\"main\">");
-            client.println("    <div class=\"garden-preview\">");
-            client.println("      <div id=\"planter-box-1\" class=\"planter-box\"><p>Sage</p></div>");
-            client.println("      <div id=\"planter-box-2\" class=\"planter-box\"><p>Basil</p></div>");
-            client.println("    </div>");
-            client.println("    <div class=\"garden-info\">");
-            client.println("      <div id=\"planter-info-1\" class=\"planter-info\">");
-            client.println("        <div>");
-            client.println("          <h3 class=\"planter-title\">Plant Status</h3>");
-            client.println("          <p>last watered: 26/03/2025</p>");
-            client.println("          <p>saturation: " + String(moisturePercent) + "%</p>");
-            client.println("        </div>");
-            if (pumpState == "off") { // if pump is inactive
-              client.println("        <a href=\"/25/on\">");
+            if (isExporting == "false") {
+              client.println("<body>");
+              client.println("  <section class=\"header\">");
+              client.println("    <h1 class=\"title\">My Floating Garden</h1>");
+              client.println("    <div>");
+              client.println("      <!-- Weather Icon goes here -->");
+              client.println("      <p>Vancouver, BC</p>");
+              client.println("    </div>");
+              client.println("  </section>");
+              client.println("  <section class=\"main\">");
+              client.println("    <div class=\"garden-preview\">");
+              client.println("      <div id=\"planter-box-1\" class=\"planter-box\"><p>Sage</p></div>");
+              client.println("      <div id=\"planter-box-2\" class=\"planter-box\"><p>Basil</p></div>");
+              client.println("    </div>");
+              client.println("    <div class=\"garden-info\">");
+              client.println("      <div id=\"planter-info-1\" class=\"planter-info\">");
+              client.println("        <div>");
+              client.println("          <h3 class=\"planter-title\">Plant Status</h3>");
+              client.println("          <p>last watered: 26/03/2025</p>");
+              client.println("          <p>saturation: " + String(moisturePercent) + "%</p>");
+              client.println("        </div>");
+              if (pumpState == "off") { // if pump is inactive
+                client.println("        <a href=\"/25/on\">");
+                client.println("        <button class=\"water-button\">");
+                client.println("          <p>water!</p>");
+                client.println("        </button></a>");
+              } else {                  // if pump is active (button is NOT linked)
+                client.println("        <button class=\"water-button-disabled\">");
+                client.println("          <p>watering</p>");
+                client.println("        </button><");
+              }
+              client.println("      </div>");
+              client.println("      <a href=\"/export\">");
               client.println("        <button class=\"water-button\">");
-              client.println("          <p>water!</p>");
-              client.println("        </button></a>");
-            } else {                  // if pump is active (button is NOT linked)
-              client.println("        <button class=\"water-button-disabled\">");
-              client.println("          <p>watering</p>");
-              client.println("        </button><");
+              client.println("        <p>EXPORT DATA</p>");
+              client.println("        </button>");
+              client.println("      </a>");
+              client.println("    </div>");
+              client.println("  </section>");
+              client.println("  <section class=\"footer\">");
+              client.println("  </section>");
+              client.println("</body>");
+            } else { // if isExporting = "true":
+              client.println("<body>");
+              
+              // for loop to print data
+              for (int i = 0; i < readingIndex; i++) {
+                client.println("<p>" + String(readings[i].timestamp) + "   |   " + String(readings[i].moistureReading) + "</p>");
+                client.println("<p> </p>");
+              }
+              client.println("</body>");
             }
-            client.println("      </div>");
-            // client.println("      <div id=\"planter-info-2\" class=\"planter-info\">");
-            // client.println("        <div>");
-            // client.println("          <h3 class=\"planter-title\">Basil Planter</h3>");
-            // client.println("          <p>last watered: 26/03/2025</p>");
-            // client.println("          <p>saturation: " + String(moisturePercent) + "%</p>");
-            // client.println("        </div>");
-            // // client.println("        <button class=\"water-button\">");
-            // // client.println("          <p>water!</p>");
-            // // client.println("        </button>");
-            // client.println("      </div>");
-            client.println("    </div>");
-            client.println("  </section>");
-            client.println("  <section class=\"footer\">");
-            client.println("  </section>");
-            client.println("</body>");
-            client.println("</html>");
+              client.println("</html>");
+            
             
             // The HTTP response ends with another blank line
             client.println();
@@ -321,4 +349,40 @@ void waterPlant() {
   analogWrite(pumpOutput, 0);
   pumpState = "off";
   digitalWrite(2, LOW); // blue LED thats on the ESP32 board
+}
+
+void readMoistureSensors() {
+  // saturation level calcs
+  moistureReading = analogRead(sensorInput);
+  Serial.print("Moisture sensor reading: ");
+  Serial.println(moistureReading);
+  if (moistureReading > threshold) { // higher reading = drier soil
+    soilState = "dry";
+    waterPlant();
+  } else {
+    soilState = "wet";
+  }
+  // moisture percent:
+  moisturePercent = 100 * float((1 - float((moistureReading - 0) / (4095 - 0))));
+  Serial.print("Moisture percent: ");
+  Serial.println(moisturePercent);
+  
+  // Save a new reading every minute
+  if (currentTime - lastReadingTime >= readingInterval) {
+    lastReadingTime = currentTime;
+    
+    if (readingIndex < MAX_READINGS) {
+      readings[readingIndex].timestamp = currentTime;
+      readings[readingIndex].moistureReading = moistureReading;
+
+      Serial.print("============ Reading added: ");
+      Serial.print(readings[readingIndex].timestamp);
+      Serial.print("  |  ");
+      Serial.println(readings[readingIndex].moistureReading);
+      
+      readingIndex++;
+    } else {
+      readingIndex = 0; // if MAX_READING is reached, go back to 0
+    }
+  }
 }
