@@ -1,37 +1,29 @@
 /* ======================================== 
-#### NOTES:
+#### TROUBLESHOOTING:
 - make sure laptop is connected to ubcvisitor before running!
-
-#### TROUBLESHOOTING: 
 - if upload error 2, make sure upload speed = 112500
 
-### PLAN: 
-
-- create struct with time & moisture reading
-- create array of structs 
-- make button that takes u to another page thats just the moisture data
-- display the array data on the other page 
-  - make test array
-
-if itme: find a way to convert ms to date/time
+#### CORE FEATURES: 
+- Wifi connection 
+- Moisture sensor integration 
+- web server
+- saving & exporting moisture data
+- Convert ms to human-readable date/time 
 
 ======================================== */
 
 // Load Wi-Fi library
 #include <WiFi.h>
+#include <time.h>
 
-// ### Isabella's hotspot:
-const char* ssid = "isabellas phone"; // network name
-const char* password = "hohoheeha"; // network password 
+// network credentials
+const char* ssid = "############"; // network name
+const char* password = "############"; // network password 
 
-// ### Nina's apartment:
-// const char* ssid = "TELUS5499"; // network name
-// const char* password = "346g5j593k"; // network password 
-
-// ### Isabella's house: 
-// const char* ssid = "SHAW-7C2E"; // network name
-// const char* password = "collar8216camel"; // network password 
-
+// Time conversion -- NTP Server details
+const char* ntpServer = "pool.ntp.org";
+const long  gmtOffset_sec = -28800; // adjust for your timezone (example: PST is -8 hours)
+const int   daylightOffset_sec = 3600;
 
 // Set web server port number to 80
 WiFiServer server(80);
@@ -39,37 +31,37 @@ WiFiServer server(80);
 // Variable to store the HTTP request
 String header;
 
-// auxiliar variables to store current output states
+// output states
 String pumpState = "off";
 String soilState = "wet"; // "wet": moisture levels over threshold
                           // "dry": moisture levels under threshold
 String isExporting = "false"; // "true" sends user to export page
 
-// output variables for GPIO pins
+// GPIO pins
 const int pumpOutput = 25;
 const int sensorInput = 32;
 
+// moisture variables 
 float moistureReading = 0.00;
 float moisturePercent = 0.00;
 int threshold = 2755; // og value was 2457, 2755 was the moisture reading on dry soil
                       // wet soil goes down to ~1300
 
-// Timing variables for WIFI
+// Time variables for WIFI
 unsigned long currentTimeoutTime = millis();
 unsigned long previousTime = 0; 
 const long timeoutTime = 2000; // Define WIFI timeout time in milliseconds (example: 2000ms = 2s)
 
-// Timing variables for RECORDING 
+// Time variables for RECORDING 
 unsigned long currentReadingTime = millis();
 unsigned long lastReadingTime = 0;
 const unsigned long readingInterval = 60000; // 15 minutes in milliseconds 
 
-// exporting data setup
-
+// setting up the data export array
 #define MAX_READINGS 1440
 
 struct Reading {
-  unsigned long timestamp;
+  time_t timestamp;
   float moistureReading;
 };
 
@@ -84,8 +76,6 @@ void setup() {
   pinMode(2, OUTPUT);
 
   WiFi.mode(WIFI_STA);
-  Serial.println("MAC address: ");
-  Serial.println(WiFi.macAddress());
 
   // Connect to Wi-Fi network with SSID and password
   Serial.print("Connecting to ");
@@ -95,6 +85,17 @@ void setup() {
     delay(500);
     Serial.print(".");
   }
+
+  // Sync time with NTP
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  Serial.println("\nWaiting for time synchronization...");
+  struct tm timeinfo;
+  while (!getLocalTime(&timeinfo)) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nTime synchronized.");
+
 
   // Print local IP address and start web server
   Serial.println("");
@@ -106,13 +107,9 @@ void setup() {
 
 void loop(){
   WiFiClient client = server.available();   // Listen for incoming clients
-
-  currentReadingTime = millis();
+  
   readMoistureSensors(); 
-  Serial.print("isExporting: ");
-  Serial.println(isExporting);
-
-
+  
   if (client) {                             // If a new client connects,
     currentTimeoutTime = millis();
     previousTime = currentTimeoutTime;
@@ -137,7 +134,7 @@ void loop(){
 
             // HTTPS routes
             if (header.indexOf("GET /25/on") >= 0) {
-              Serial.println("pump on");
+              Serial.println("turning pump on...");
               pumpState = "on";
               waterPlant();
             } else if (header.indexOf("GET /export") >= 0) {
@@ -150,9 +147,6 @@ void loop(){
             } else if (header.indexOf("GET /") >= 0) {
               Serial.println("displaying home page...");
               isExporting = "false";
-
-              Serial.print("isExporting: ");
-              Serial.println(isExporting);
             };
 
             // Display the HTML web page
@@ -165,6 +159,7 @@ void loop(){
             client.println("  <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">");
             client.println("  <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>");
             client.println("  <link href=\"https://fonts.googleapis.com/css2?family=Inclusive+Sans:ital,wght@0,300..700;1,300..700&family=Jua&family=Varela+Round&display=swap\" rel=\"stylesheet\">");
+            // css styling 
             client.println("  <style>");
             client.println("    :root {");
             client.println("      --green1: #60693D;");
@@ -271,7 +266,10 @@ void loop(){
             client.println("    }");
             client.println("  </style>");
             client.println("</head>");
+
+            // if not trying to export... 
             if (isExporting == "false") {
+              // show the main home page
               client.println("<body>");
               client.println("  <section class=\"header\">");
               client.println("    <h1 class=\"title\">My Floating Garden</h1>");
@@ -303,58 +301,64 @@ void loop(){
                 client.println("        </button><");
               }
               client.println("      </div>");
+              client.println("      <p> </p>");
+              client.println("      <p> </p>");
+              client.println("      <p> </p>");
+              client.println("      <p> </p>");
+              client.println("      <p> </p>");
               client.println("      <a href=\"/export\">");
               client.println("        <button class=\"water-button\">");
               client.println("        <p>EXPORT DATA</p>");
               client.println("        </button>");
               client.println("      </a>");
               client.println("    </div>");
-              for (int i = 0; i < readingIndex; i++) {
-                client.println("<p>" + String(readings[i].timestamp) + "   |   " + String(readings[i].moistureReading) + "</p>");
-                client.println("<p> </p>");
-              };
+              // for (int i = 0; i < readingIndex; i++) {
+              //   client.println("<p>" + formatTimestamp(readings[i].timestamp) + "   |   " + String(readings[i].moistureReading) + "</p>");
+              //   client.println("<p> </p>");
+              // };
               client.println("  </section>");
               client.println("  <section class=\"footer\">");
               client.println("  </section>");
               client.println("</body>");
-            } else { // if isExporting = "true":
+            
+            // if trying to export...
+            } else { 
+              // print moisture data since start-up
               client.println("<body>");
               client.println("<p>Your data:</p>");
               
               // for loop to print data
               for (int i = 0; i < readingIndex; i++) {
-                client.println("<p>" + String(readings[i].timestamp) + "   |   " + String(readings[i].moistureReading) + "</p>");
+                client.println("<p>" + formatTimestamp(readings[i].timestamp) + "   |   " + String(readings[i].moistureReading) + "</p>");
                 client.println("<p> </p>");
               };
               client.println("</body>");
             }
               client.println("</html>");
             
-            
             // The HTTP response ends with another blank line
             client.println();
-            // Break out of the while loop
             break;
-          } else { // if you got a newline, then clear currentLine
+          } else { // if we get a newline, then clear currentLine
             currentLine = "";
           }         
-        } else if (c != '\r') {  // if you got anything else but a carriage return character,
+        } else if (c != '\r') {  // if you got anything else but a carriage return character...
           currentLine += c;      // add it to the end of the currentLine
         }
       }
     }
-    // Clear the header variable
-    header = "";
+    header = ""; // Clear the header variable
     // Close the connection
     client.stop();
     Serial.println("Client disconnected.");
     Serial.println("");
-  } else {
-    // Serial.println("Waiting for connection...");
   }
   delay(500);
 }
 
+// ## waterPlant() :
+// - turns on/off the pump
+// - turns on/off the blue LED on the ESP32 board
 void waterPlant() {
   digitalWrite(2, HIGH); // blue LED thats on the ESP32 board
   // turn on pump for 5s, then turn it off
@@ -365,37 +369,48 @@ void waterPlant() {
   digitalWrite(2, LOW); // blue LED thats on the ESP32 board
 }
 
+// ## readMoistureSensors() :
+// - retrieves moisture reading
+// - sets soilState to dry/wet based on moisture reading and threshold
+// - computes the soil's moisture percent
+// - saves moistureReading & timestamp to data array 
 void readMoistureSensors() {
-  // saturation level calcs
+  // saturation level calculations
   moistureReading = analogRead(sensorInput);
-  Serial.print("Moisture sensor reading: ");
-  Serial.println(moistureReading);
   if (moistureReading > threshold) { // higher reading = drier soil
     soilState = "dry";
     waterPlant();
   } else {
     soilState = "wet";
   }
-  // moisture percent:
+  // compute moisture percent
   moisturePercent = 100 * float((1 - float((moistureReading - 0) / (4095 - 0))));
-  Serial.print("Moisture percent: ");
-  Serial.println(moisturePercent);
-  
-  // Save a new reading every minute
+
+  currentReadingTime = millis();
+  // save reading if it's been a minute
   if (currentReadingTime - lastReadingTime >= readingInterval) {
     lastReadingTime = currentReadingTime;
-    
-    if (readingIndex < MAX_READINGS) {
-      readings[readingIndex].timestamp = currentReadingTime;
-      readings[readingIndex].moistureReading = moistureReading;
 
-      Serial.print("============ Reading added: ");
-      Serial.print(readings[readingIndex].timestamp);
-      Serial.print("  |  ");
-      Serial.println(readings[readingIndex].moistureReading);
+    // get the current real time
+    time_t now;
+    time(&now);
+
+    // save new reading & timestamp to array
+    if (readingIndex < MAX_READINGS) {
+      readings[readingIndex].timestamp = now;
+      readings[readingIndex].moistureReading = moistureReading;
       readingIndex++;
     } else {
       readingIndex = 0; // if MAX_READING is reached, go back to 0
     }
   }
+}
+
+// formats ms to a date-time format
+String formatTimestamp(time_t rawTime) {
+  struct tm timeinfo;
+  localtime_r(&rawTime, &timeinfo);
+  char buffer[30];
+  strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &timeinfo);
+  return String(buffer);
 }
